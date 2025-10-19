@@ -3,6 +3,18 @@ import random
 import resend
 import os
 from datetime import datetime
+from flask import Flask
+import threading
+
+# keep Render happy: create a minimal web server
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Email warm-up running"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
 
 # Load Resend API key from environment variable
 resend.api_key = os.getenv("RESEND_API_KEY")
@@ -63,6 +75,8 @@ def warmup_loop():
 
         print(f"⏱ Waiting {delay_hours:.2f} hours before next email...\n")
         time.sleep(delay_seconds)
+
+threading.Thread(target=run_flask, daemon=True).start()
 
 if __name__ == "__main__":
     warmup_loop()
