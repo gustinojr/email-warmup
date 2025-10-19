@@ -1,0 +1,10 @@
+services:
+  - type: worker
+    name: email-warmup
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python warmup_sender.py"
+    envVars:
+      - key: re_Epo6veQh_Dno1johHmRLZLpzesrR1vueW
+        sync: false
