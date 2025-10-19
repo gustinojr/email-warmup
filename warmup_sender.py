@@ -7,7 +7,7 @@ from datetime import datetime
 # Load Resend API key from environment variable
 resend.api_key = os.getenv("RESEND_API_KEY")
 
-SENDER = "Gustino's SPA <info@send.gustinospa.dpdns.org>"
+SENDER = "Gustino's SPA <staff@gustinospa.dpdns.org>"
 BCC = "gustinosspa@gmail.com"
 
 EMAIL_SUBJECTS = [
