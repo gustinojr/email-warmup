@@ -3,79 +3,44 @@ import random
 import resend
 import os
 from datetime import datetime
-from flask import Flask
+from flask import Flask, jsonify
 import threading
 
-# ------------------------
-# Minimal web server (keep Render happy)
-# ------------------------
+# Flask web server (required for Render)
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Email warm-up running"
-
-def run_flask():
-    app.run(host="0.0.0.0", port=10000)
-
-# ------------------------
-# Resend setup
-# ------------------------
+# --- RESEND CONFIGURATION ---
 resend.api_key = os.getenv("RESEND_API_KEY")
-SENDER = "Gustino's SPA <staff@gustinospa.dpdns.org>"
+
+SENDER = "Gustino's SPA <noreply@send.gustinospa.dpdns.org>"
 BCC = "gustinosspa@gmail.com"
 
-# ------------------------
-# Subjects and bodies (Italian content)
-# ------------------------
-EMAIL_SUBJECTS = [
-    "Ciao da Gustino's SPA",
-    "Benvenuto da Gustino's SPA",
-    "Ti auguriamo una buona giornata",
-    "Un saluto dal team di Gustino's SPA",
-    "Notifica di test dal nostro sistema",
-    "Messaggio di cortesia da Gustino's SPA",
-    "Verifica email automatica",
-    "Test di funzionalità email",
-    "Controllo automatico invio messaggi",
-    "Piccolo promemoria dal team Gustino"
+# --- RANDOM EMAIL CONTENT OPTIONS ---
+GREETINGS = ["Ciao", "Buongiorno", "Salve", "Hey", "Un saluto da noi"]
+CLOSINGS = ["A presto 🌸", "Un caro saluto", "Con affetto 💆‍♀️", "Buona giornata ☀️", "Alla prossima 👋"]
+
+SUBJECTS = [
+    "Un saluto da Gustino's SPA 💆‍♀️",
+    "Ti auguriamo una splendida giornata",
+    "Grazie per essere parte della nostra community",
+    "Un pensiero rilassante da Gustino's SPA",
+    "Oggi pensa a te stesso 🌿"
 ]
 
-EMAIL_BODIES = [
-    """
-    <p>Ciao,</p>
-    <p>Ti scriviamo solo per augurarti una splendida giornata 🌿</p>
-    <p>Lo staff di <strong>Gustino's SPA</strong></p>
-    """,
-    """
-    <p>Ciao,</p>
-    <p>Grazie per averci contattato! Speriamo di vederti presto alla nostra spa.</p>
-    <p>Un saluto, <br> <strong>Gustino's SPA</strong></p>
-    """,
-    """
-    <p>Ciao,</p>
-    <p>Solo un piccolo messaggio di cortesia per salutarti e ringraziarti.</p>
-    <p>Buona giornata 🌸<br>Lo staff di Gustino's SPA</p>
-    """,
-    """
-    <p>Ciao,</p>
-    <p>Questo è un messaggio automatico per verificare che il sistema email funzioni correttamente.</p>
-    <p>Lo staff di Gustino's SPA</p>
-    """,
-    """
-    <p>Ciao,</p>
-    <p>Controllo periodico: stiamo verificando l'invio corretto delle email.</p>
-    <p>Grazie per la collaborazione 🌿</p>
-    """
+BODY_TEMPLATES = [
+    "{greet},<br><br>Speriamo che la tua giornata stia andando bene!<br>Ti mandiamo un pensiero di relax da <strong>Gustino's SPA</strong>.<br><br>{close}<br><em>Lo staff di Gustino's SPA</em>",
+    "{greet},<br><br>Solo un piccolo messaggio per augurarti un po' di serenità.<br>Ci piacerebbe rivederti presto alla nostra spa!<br><br>{close}<br><em>Lo staff di Gustino's SPA</em>",
+    "{greet},<br><br>Ogni giornata è migliore con un momento di relax.<br>Ti ricordiamo che Gustino's SPA è sempre pronta ad accoglierti!<br><br>{close}<br><em>Gustino's SPA</em>"
 ]
 
-# ------------------------
-# Send email function
-# ------------------------
+# --- SEND FUNCTION ---
 def send_email(to_email):
-    subject = random.choice(EMAIL_SUBJECTS)
-    html_content = random.choice(EMAIL_BODIES)
-    text_content = "Messaggio di verifica dal team Gustino's SPA."
+    subject = random.choice(SUBJECTS)
+    greeting = random.choice(GREETINGS)
+    closing = random.choice(CLOSINGS)
+    body_template = random.choice(BODY_TEMPLATES)
+
+    html_content = body_template.format(greet=greeting, close=closing)
 
     try:
         resend.Emails.send({
@@ -83,38 +48,63 @@ def send_email(to_email):
             "to": [to_email],
             "bcc": [BCC],
             "subject": subject,
-            "html": html_content,
-            "text": text_content
+            "html": html_content
         })
         print(f"[{datetime.now().isoformat()}] ✅ Sent to {to_email} | Subject: {subject}")
+        return {"status": "success", "to": to_email, "subject": subject}
     except Exception as e:
         print(f"[{datetime.now().isoformat()}] ❌ Failed for {to_email}: {e}")
+        return {"status": "error", "to": to_email, "error": str(e)}
 
-# ------------------------
-# Warm-up loop
-# ------------------------
+# --- MANUAL SEND ROUTE ---
+@app.route("/send_mail")
+def manual_send():
+    """
+    Trigger an email manually by calling this route.
+    Randomly selects a recipient from recipients.txt
+    """
+    try:
+        with open("recipients.txt") as f:
+            recipients = [line.strip() for line in f if line.strip()]
+        if not recipients:
+            return jsonify({"error": "No recipients found in recipients.txt"}), 400
+
+        recipient = random.choice(recipients)
+        result = send_email(recipient)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# --- BACKGROUND AUTO WARM-UP LOOP ---
 def warmup_loop():
-    # Load recipients from a file
-    with open("recipients.txt") as f:
-        recipients = [line.strip() for line in f if line.strip()]
+    """
+    Continuously sends emails every 2–6 hours to random recipients.
+    """
+    try:
+        with open("recipients.txt") as f:
+            recipients = [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        print("⚠️ recipients.txt not found — auto warm-up disabled until file exists.")
+        recipients = []
 
-    while True:
+    while recipients:
         recipient = random.choice(recipients)
         send_email(recipient)
 
-        # Random delay between 2 and 5 hours
-        delay_hours = random.uniform(2, 5)
+        # Random delay between 2 and 6 hours
+        delay_hours = random.uniform(2, 6)
         delay_seconds = delay_hours * 3600
+
         print(f"⏱ Waiting {delay_hours:.2f} hours before next email...\n")
         time.sleep(delay_seconds)
 
-# ------------------------
-# Start Flask server in background
-# ------------------------
-threading.Thread(target=run_flask, daemon=True).start()
+@app.route('/')
+def home():
+    return "✅ Gustino's SPA Email Warm-up is running"
 
-# ------------------------
-# Start warm-up loop
-# ------------------------
+# --- START SERVER AND BACKGROUND THREAD ---
+threading.Thread(target=warmup_loop, daemon=True).start()
+
 if __name__ == "__main__":
-    warmup_loop()
+    app.run(host="0.0.0.0", port=10000)
