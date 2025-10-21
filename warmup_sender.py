@@ -12,7 +12,7 @@ app = Flask(__name__)
 # --- RESEND CONFIGURATION ---
 resend.api_key = os.getenv("RESEND_API_KEY")
 
-SENDER = "Gustino's SPA <noreply@send.gustinospa.dpdns.org>"
+SENDER = "Gustino's SPA <staff@gustinospa.dpdns.org>"
 BCC = "gustinosspa@gmail.com"
 
 # --- RANDOM EMAIL CONTENT OPTIONS ---
